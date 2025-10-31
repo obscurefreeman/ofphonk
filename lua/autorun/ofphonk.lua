@@ -17,6 +17,23 @@ local phonkSounds = {
     "ofphonk/11.wav"
 }
 
+local memes = {
+    "ofphonk/1.png",
+    "ofphonk/2.png",
+    "ofphonk/3.png",
+    "ofphonk/4.png",
+    "ofphonk/5.png",
+    "ofphonk/6.png",
+    "ofphonk/7.png",
+    "ofphonk/8.png",
+    "ofphonk/9.png",
+    "ofphonk/10.png",
+    "ofphonk/11.png",
+    "ofphonk/12.png",
+    "ofphonk/13.png",
+    "ofphonk/14.png",
+}
+
 if SERVER then
     util.AddNetworkString("OFPhonk_KillEvent")
     util.AddNetworkString("OFPhonk_RecoveryTime") -- 新增网络消息
@@ -81,6 +98,8 @@ elseif CLIENT then
     local bwEffect = false
     local lockView = false
     local lockedAngles = Angle(0, 0, 0)
+    local randomMeme = nil
+    local drawImage = false
 
     -- 接收服务器发送的恢复时间
     net.Receive("OFPhonk_RecoveryTime", function()
@@ -97,6 +116,8 @@ elseif CLIENT then
 
         -- 启用黑白效果
         bwEffect = true
+        drawImage = true
+        randomMeme = memes[math.random(1, #memes)]
 
         -- 锁定视角
         local ply = LocalPlayer()
@@ -113,6 +134,7 @@ elseif CLIENT then
             if SysTime() >= OFPHONKRECOVERY then
                 bwEffect = false
                 lockView = false
+                drawImage = false
                 hook.Remove("Think", "OFPhonk_ClientRecoveryThink")
                 print("[OFPhonk] 客户端黑白效果已关闭")
             end
@@ -135,6 +157,32 @@ elseif CLIENT then
                 ["$pp_colour_mulg"] = 0,
                 ["$pp_colour_mulb"] = 0
             })
+        end
+    end)
+
+    -- 在屏幕上绘制随机图片
+    hook.Add("HUDPaint", "OFPhonk_DrawRandomImage", function()
+        if drawImage and randomMeme then
+            local screenW = ScrW()
+            local screenH = ScrH()
+
+            local imageW = randomMeme:Width()
+            local imageH = randomMeme:Height()
+
+            -- 计算水平居中位置
+            local x = (screenW - imageW) / 2
+            local y = (screenH * (2/3)) - (imageH / 2)
+
+            surface.SetMaterial(randomMeme)
+            surface.DrawTexturedRect(x, y, imageW, imageH)
+        -- else
+        --     if not drawImage then
+        --         print("[OFPhonk][DEBUG] drawImage 未启用，无法绘制图片")
+        --     elseif not randomMeme then
+        --         print("[OFPhonk][DEBUG] randomMeme 无效（为nil），无法绘制图片")
+        --     elseif randomMeme:IsError() then
+        --         print("[OFPhonk][DEBUG] randomMeme 载入失败（IsError()为true），无法绘制图片")
+        --     end
         end
     end)
 
