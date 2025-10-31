@@ -17,7 +17,7 @@ local phonkSounds = {
 if SERVER then
     util.AddNetworkString("OFPhonk_KillEvent")
 
-    local freezeDuration = 2.0
+    local freezeDuration = 4.0
     local nextAvailable = 0
 
     -- 立即暂停时间，过期后直接恢复
@@ -43,11 +43,11 @@ if SERVER then
 
         -- 在真实时间（不受 game.SetTimeScale 影响）后恢复速度
         local realRecoveryTime = SysTime() + soundDuration
-        timer.Create("OFPhonk_RecoveryTimer", 0.01, 0, function() -- 使用一个非常小的间隔来检查
+        hook.Add("Think", "OFPhonk_RecoveryThink", function()
             if SysTime() >= realRecoveryTime then
                 game.SetTimeScale(1)
-                -- print("[OFPhonk] 强制完全恢复，经过时间：", math.abs(SysTime()-realRecoveryTime))
-                timer.Remove("OFPhonk_RecoveryTimer")
+                print("[OFPhonk] 强制完全恢复，系统时间：", SysTime(), "应该消失的时间：", realRecoveryTime)
+                hook.Remove("Think", "OFPhonk_RecoveryThink")
             end
         end)
 
