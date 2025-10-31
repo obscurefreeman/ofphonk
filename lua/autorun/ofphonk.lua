@@ -1,5 +1,8 @@
 AddCSLuaFile()
 
+-- 全局变量
+OFPHONKRECOVERY = 0
+
 local phonkSounds = {
     "ofphonk/1.wav",
     "ofphonk/2.wav",
@@ -16,6 +19,7 @@ local phonkSounds = {
 
 if SERVER then
     util.AddNetworkString("OFPhonk_KillEvent")
+    util.AddNetworkString("OFPhonk_RecoveryTime") -- 新增网络消息
 
     local freezeDuration = 4.0
     local nextAvailable = 0
@@ -35,6 +39,14 @@ if SERVER then
 
         print("[OFPhonk] 音频名称：", randomSoundFile,"[OFPhonk] 音频长度：", soundDuration)
 
+        -- 设置全局恢复时间
+        OFPHONKRECOVERY = SysTime() + soundDuration
+        
+        -- 通知客户端恢复时间
+        net.Start("OFPhonk_RecoveryTime")
+        net.WriteFloat(OFPHONKRECOVERY)
+        net.Broadcast()
+
         -- 通知客户端播放音效和开启黑白，同时传递 randomSoundFile 和 soundDuration
         net.Start("OFPhonk_KillEvent")
         net.WriteString(randomSoundFile)
@@ -42,16 +54,15 @@ if SERVER then
         net.Send(attacker)
 
         -- 在真实时间（不受 game.SetTimeScale 影响）后恢复速度
-        local realRecoveryTime = SysTime() + soundDuration
         hook.Add("Think", "OFPhonk_RecoveryThink", function()
-            if SysTime() >= realRecoveryTime then
+            if SysTime() >= OFPHONKRECOVERY - 0.8 then
                 game.SetTimeScale(1)
-                print("[OFPhonk] 强制完全恢复，系统时间：", SysTime(), "应该消失的时间：", realRecoveryTime)
+                print("[OFPhonk] 强制完全恢复，系统时间：", SysTime(), "应该消失的时间：", OFPHONKRECOVERY)
                 hook.Remove("Think", "OFPhonk_RecoveryThink")
             end
         end)
 
-        game.SetTimeScale(0.01)
+        game.SetTimeScale(0)
     end
 
     hook.Add("OnNPCKilled", "OFPhonk_OnNPCKilled", function(npc, attacker, inflictor)
@@ -70,6 +81,11 @@ elseif CLIENT then
     local bwEffect = false
     -- local phonkSoundChannel = nil -- 未用到可去除
 
+    -- 接收服务器发送的恢复时间
+    net.Receive("OFPhonk_RecoveryTime", function()
+        OFPHONKRECOVERY = net.ReadFloat()
+    end)
+
     net.Receive("OFPhonk_KillEvent", function()
         if CurTime() < nextAvailable then return end
         nextAvailable = CurTime() + 3 -- 避免事件堆叠
@@ -84,10 +100,15 @@ elseif CLIENT then
         -- 播放音效
         surface.PlaySound(randomSoundFile)
 
-        -- 关闭黑白效果的计时由音效时长决定
-        timer.Simple(soundDuration, function()
-            bwEffect = false
+        -- 使用全局恢复时间同步关闭黑白效果
+        hook.Add("Think", "OFPhonk_ClientRecoveryThink", function()
+            if SysTime() >= OFPHONKRECOVERY then
+                bwEffect = false
+                hook.Remove("Think", "OFPhonk_ClientRecoveryThink")
+                print("[OFPhonk] 客户端黑白效果已关闭")
+            end
         end)
+        
         print("[OFPhonk] 音频长度：", soundDuration)
     end)
 
