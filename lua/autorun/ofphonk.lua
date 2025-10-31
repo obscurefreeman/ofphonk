@@ -79,7 +79,8 @@ elseif CLIENT then
 
     local nextAvailable = 0
     local bwEffect = false
-    -- local phonkSoundChannel = nil -- 未用到可去除
+    local lockView = false
+    local lockedAngles = Angle(0, 0, 0)
 
     -- 接收服务器发送的恢复时间
     net.Receive("OFPhonk_RecoveryTime", function()
@@ -97,13 +98,21 @@ elseif CLIENT then
         -- 启用黑白效果
         bwEffect = true
 
+        -- 锁定视角
+        local ply = LocalPlayer()
+        if IsValid(ply) then
+            lockedAngles = ply:EyeAngles()
+            lockView = true
+        end
+
         -- 播放音效
         surface.PlaySound(randomSoundFile)
 
-        -- 使用全局恢复时间同步关闭黑白效果
+        -- 使用全局恢复时间同步关闭黑白效果和解锁视角
         hook.Add("Think", "OFPhonk_ClientRecoveryThink", function()
             if SysTime() >= OFPHONKRECOVERY then
                 bwEffect = false
+                lockView = false
                 hook.Remove("Think", "OFPhonk_ClientRecoveryThink")
                 print("[OFPhonk] 客户端黑白效果已关闭")
             end
@@ -126,6 +135,13 @@ elseif CLIENT then
                 ["$pp_colour_mulg"] = 0,
                 ["$pp_colour_mulb"] = 0
             })
+        end
+    end)
+
+    -- 锁定玩家视角旋转
+    hook.Add("CreateMove", "OFPhonk_LockView", function(cmd)
+        if lockView then
+            cmd:SetViewAngles(lockedAngles)
         end
     end)
 
