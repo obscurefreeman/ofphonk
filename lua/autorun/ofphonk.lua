@@ -1,25 +1,18 @@
 AddCSLuaFile()
 
-sound.Add( {
-    name = "ofphonk.phonk",
-    channel = CHAN_STATIC,
-    volume = 1,
-    level = 65,
-    pitch = {95, 110},
-    sound = {
-        "ofphonk/1.ogg",
-        "ofphonk/2.ogg",
-        "ofphonk/3.ogg",
-        "ofphonk/4.ogg",
-        "ofphonk/5.ogg",
-        "ofphonk/6.ogg",
-        "ofphonk/7.ogg",
-        "ofphonk/8.ogg",
-        "ofphonk/9.ogg",
-        "ofphonk/10.ogg",
-        "ofphonk/11.ogg"
-    } 
-} )
+local phonkSounds = {
+    "ofphonk/1.ogg",
+    "ofphonk/2.ogg",
+    "ofphonk/3.ogg",
+    "ofphonk/4.ogg",
+    "ofphonk/5.ogg",
+    "ofphonk/6.ogg",
+    "ofphonk/7.ogg",
+    "ofphonk/8.ogg",
+    "ofphonk/9.ogg",
+    "ofphonk/10.ogg",
+    "ofphonk/11.ogg"
+}
 
 if SERVER then
     util.AddNetworkString("OFPhonk_KillEvent")
@@ -38,8 +31,11 @@ if SERVER then
         -- 立即暂停时间
         game.SetTimeScale(0.01)
 
-        -- 通知客户端播放音效和开启黑白
+        local randomSoundFile = phonkSounds[math.random(1, #phonkSounds)]
+
+        -- 通知客户端播放音效和开启黑白，同时传递 randomSoundFile
         net.Start("OFPhonk_KillEvent")
+        net.WriteString(randomSoundFile)
         net.Send(attacker)
 
         -- 在真实时间（不受 game.SetTimeScale 影响）后恢复速度
@@ -73,11 +69,14 @@ elseif CLIENT then
         if CurTime() < nextAvailable then return end
         nextAvailable = CurTime() + 3 -- 避免事件堆叠
 
+        -- 接收音效文件路径
+        local randomSoundFile = net.ReadString()
+
         -- 启用黑白效果
         bwEffect = true
 
         -- 播放音效
-        surface.PlaySound("ofphonk.phonk")
+        surface.PlaySound(randomSoundFile)
 
         -- 关闭黑白效果的计时由服务器freezeDuration和recoveryDuration决定，应与之同步
         local freezeDuration = 2.0
