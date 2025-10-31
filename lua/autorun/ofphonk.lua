@@ -23,49 +23,89 @@ sound.Add( {
 
 if SERVER then
     util.AddNetworkString("OFPhonk_KillEvent")
-    
+
+    -- 移动到服务器端：定义timescale控制变量和参数
+    local currentTimeScale = 1
+    local targetTimeScale = 1
+    local freezeDuration = 2.0
+    local recoveryDuration = 1.0
+    local nextAvailable = 0
+
+    -- 在服务器端处理Kill事件，包括timescale的调节
+    local function HandlePhonkKillEvent(attacker)
+        print("[OFPhonk] 触发事件，攻击者：", attacker)
+        if not IsValid(attacker) or not attacker:IsPlayer() then return end
+        if CurTime() < nextAvailable then return end
+        nextAvailable = CurTime() + 3 -- 防止事件堆叠
+
+        -- 设置目标TimeScale
+        targetTimeScale = 0.05
+
+        -- 通知客户端播放音效和开启黑白
+        net.Start("OFPhonk_KillEvent")
+        net.Send(attacker)
+
+        -- 计时后，恢复速度
+        timer.Simple(freezeDuration, function()
+            targetTimeScale = 1
+            print("[OFPhonk] 恢复速度中")
+        end)
+
+        -- 计时后，强制完全恢复（应答客户端实际只负责关黑白）
+        timer.Simple(freezeDuration + recoveryDuration, function()
+            currentTimeScale = 1
+            targetTimeScale = 1
+            game.SetTimeScale(1)
+            print("[OFPhonk] 强制完全恢复")
+        end)
+    end
+
     hook.Add("OnNPCKilled", "OFPhonk_OnNPCKilled", function(npc, attacker, inflictor)
-        if IsValid(attacker) and attacker:IsPlayer() then
-            net.Start("OFPhonk_KillEvent")
-            net.Send(attacker)
-        end
+        HandlePhonkKillEvent(attacker)
     end)
 
     hook.Add("PlayerDeath", "OFPhonk_PlayerDeath", function(victim, inflictor, attacker)
-        if IsValid(attacker) and attacker:IsPlayer() and victim ~= attacker then
-            net.Start("OFPhonk_KillEvent")
-            net.Send(attacker)
+        if victim ~= attacker then
+            HandlePhonkKillEvent(attacker)
         end
     end)
-else -- CLIENT
+
+    -- 服务器平滑推动timescale
+    hook.Add("Think", "OFPhonk_TimeScaleUpdater", function()
+        local FT = FrameTime()
+        currentTimeScale = Lerp(FT * 5, currentTimeScale, targetTimeScale)
+        -- 只有在当前TimeScale与目标TimeScale有显著差异，
+        -- 并且当前游戏TimeScale不是由其他插件设置的低速状态时才进行设置
+        -- 这里的检查是一个简单的尝试，可能无法完全避免所有冲突
+        if math.abs(game.GetTimeScale() - currentTimeScale) > 0.01 and game.GetTimeScale() >= 0.1 then
+            game.SetTimeScale(currentTimeScale)
+        elseif game.GetTimeScale() == 1 and targetTimeScale < 1 then
+            game.SetTimeScale(currentTimeScale)
+        end
+        print("[OFPhonk] 时间：", currentTimeScale)
+    end)
+
+elseif CLIENT then
 
     local nextAvailable = 0
     local bwEffect = false
-    local phonkSoundChannel = nil
-    local freezeEndTime = 0
+    -- local phonkSoundChannel = nil -- 未用到可去除
 
     net.Receive("OFPhonk_KillEvent", function()
         if CurTime() < nextAvailable then return end
-        nextAvailable = CurTime() + 3 -- To avoid stacking up events
+        nextAvailable = CurTime() + 3 -- 避免事件堆叠
 
-        -- Black and white effect
+        -- 启用黑白效果
         bwEffect = true
-        freezeEndTime = CurTime() + 2
 
-        -- "Pause": block input and movement
-        hook.Add("StartCommand", "OFPhonk_FreezeTime", function(ply, cmd)
-            if bwEffect and ply == LocalPlayer() then
-
-            end
-        end)
-
-        -- 播放
+        -- 播放音效
         surface.PlaySound("ofphonk.phonk")
 
-        -- Remove effect after 2 seconds
-        timer.Simple(3, function()
+        -- 关闭黑白效果的计时由服务器freezeDuration和recoveryDuration决定，应与之同步
+        local freezeDuration = 2.0
+        local recoveryDuration = 1.0
+        timer.Simple(freezeDuration + recoveryDuration, function()
             bwEffect = false
-            hook.Remove("StartCommand", "OFPhonk_FreezeTime")
         end)
     end)
 
@@ -87,5 +127,3 @@ else -- CLIENT
     end)
 
 end
-
-
