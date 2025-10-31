@@ -170,12 +170,24 @@ elseif CLIENT then
             local imageW = randomMeme:Width()
             local imageH = randomMeme:Height()
 
+            -- 计算缩放比例
+            local targetSize = 256
+            local scale = 1
+            if imageW > imageH then
+                scale = targetSize / imageW
+            else
+                scale = targetSize / imageH
+            end
+
+            local scaledW = imageW * scale
+            local scaledH = imageH * scale
+
             -- 计算水平居中位置
-            local x = (screenW - imageW) / 2
-            local y = (screenH * (2/3)) - (imageH / 2)
+            local x = (screenW - scaledW) / 2
+            local y = (screenH * (2/3)) - (scaledH / 2)
 
             surface.SetMaterial(randomMeme)
-            surface.DrawTexturedRect(x, y, imageW, imageH)
+            surface.DrawTexturedRect(x, y, scaledW, scaledH)
         -- else
         --     if not drawImage then
         --         print("[OFPhonk][DEBUG] drawImage 未启用，无法绘制图片")
