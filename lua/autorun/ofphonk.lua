@@ -1,24 +1,23 @@
 AddCSLuaFile()
 
 local phonkSounds = {
-    "ofphonk/1.ogg",
-    "ofphonk/2.ogg",
-    "ofphonk/3.ogg",
-    "ofphonk/4.ogg",
-    "ofphonk/5.ogg",
-    "ofphonk/6.ogg",
-    "ofphonk/7.ogg",
-    "ofphonk/8.ogg",
-    "ofphonk/9.ogg",
-    "ofphonk/10.ogg",
-    "ofphonk/11.ogg"
+    "ofphonk/1.wav",
+    "ofphonk/2.wav",
+    "ofphonk/3.wav",
+    "ofphonk/4.wav",
+    "ofphonk/5.wav",
+    "ofphonk/6.wav",
+    "ofphonk/7.wav",
+    "ofphonk/8.wav",
+    "ofphonk/9.wav",
+    "ofphonk/10.wav",
+    "ofphonk/11.wav"
 }
 
 if SERVER then
     util.AddNetworkString("OFPhonk_KillEvent")
 
     local freezeDuration = 2.0
-    local recoveryDuration = 1.0
     local nextAvailable = 0
 
     -- 立即暂停时间，过期后直接恢复
@@ -28,25 +27,31 @@ if SERVER then
         if CurTime() < nextAvailable then return end
         nextAvailable = CurTime() + 3 -- 防止事件堆叠
 
-        -- 立即暂停时间
-        game.SetTimeScale(0.01)
-
         local randomSoundFile = phonkSounds[math.random(1, #phonkSounds)]
 
-        -- 通知客户端播放音效和开启黑白，同时传递 randomSoundFile
+        -- 获取音效时长
+        local soundDuration = SoundDuration(randomSoundFile)
+        if soundDuration <= 0 then soundDuration = freezeDuration end -- 如果获取失败，使用默认值
+
+        print("[OFPhonk] 音频名称：", randomSoundFile,"[OFPhonk] 音频长度：", soundDuration)
+
+        -- 通知客户端播放音效和开启黑白，同时传递 randomSoundFile 和 soundDuration
         net.Start("OFPhonk_KillEvent")
         net.WriteString(randomSoundFile)
+        net.WriteFloat(soundDuration) -- 发送音效时长
         net.Send(attacker)
 
         -- 在真实时间（不受 game.SetTimeScale 影响）后恢复速度
-        local realRecoveryTime = SysTime() + freezeDuration + recoveryDuration
+        local realRecoveryTime = SysTime() + soundDuration
         timer.Create("OFPhonk_RecoveryTimer", 0.01, 0, function() -- 使用一个非常小的间隔来检查
             if SysTime() >= realRecoveryTime then
                 game.SetTimeScale(1)
-                print("[OFPhonk] 强制完全恢复")
+                -- print("[OFPhonk] 强制完全恢复，经过时间：", math.abs(SysTime()-realRecoveryTime))
                 timer.Remove("OFPhonk_RecoveryTimer")
             end
         end)
+
+        game.SetTimeScale(0.01)
     end
 
     hook.Add("OnNPCKilled", "OFPhonk_OnNPCKilled", function(npc, attacker, inflictor)
@@ -69,8 +74,9 @@ elseif CLIENT then
         if CurTime() < nextAvailable then return end
         nextAvailable = CurTime() + 3 -- 避免事件堆叠
 
-        -- 接收音效文件路径
+        -- 接收音效文件路径和时长
         local randomSoundFile = net.ReadString()
+        local soundDuration = net.ReadFloat() -- 接收音效时长
 
         -- 启用黑白效果
         bwEffect = true
@@ -78,12 +84,11 @@ elseif CLIENT then
         -- 播放音效
         surface.PlaySound(randomSoundFile)
 
-        -- 关闭黑白效果的计时由服务器freezeDuration和recoveryDuration决定，应与之同步
-        local freezeDuration = 2.0
-        local recoveryDuration = 1.0
-        timer.Simple(freezeDuration + recoveryDuration, function()
+        -- 关闭黑白效果的计时由音效时长决定
+        timer.Simple(soundDuration, function()
             bwEffect = false
         end)
+        print("[OFPhonk] 音频长度：", soundDuration)
     end)
 
     -- Black-and-white screen drawing
