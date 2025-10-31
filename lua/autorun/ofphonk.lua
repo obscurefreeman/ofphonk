@@ -117,7 +117,8 @@ elseif CLIENT then
         -- 启用黑白效果
         bwEffect = true
         drawImage = true
-        randomMeme = memes[math.random(1, #memes)]
+        -- 加载图片材质
+        randomMeme = Material(memes[math.random(1, #memes)], "noclamp smooth")
 
         -- 锁定视角
         local ply = LocalPlayer()
