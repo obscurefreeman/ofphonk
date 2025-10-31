@@ -24,39 +24,32 @@ sound.Add( {
 if SERVER then
     util.AddNetworkString("OFPhonk_KillEvent")
 
-    -- 移动到服务器端：定义timescale控制变量和参数
-    local currentTimeScale = 1
-    local targetTimeScale = 1
     local freezeDuration = 2.0
     local recoveryDuration = 1.0
     local nextAvailable = 0
 
-    -- 在服务器端处理Kill事件，包括timescale的调节
+    -- 立即暂停时间，过期后直接恢复
     local function HandlePhonkKillEvent(attacker)
         print("[OFPhonk] 触发事件，攻击者：", attacker)
         if not IsValid(attacker) or not attacker:IsPlayer() then return end
         if CurTime() < nextAvailable then return end
         nextAvailable = CurTime() + 3 -- 防止事件堆叠
 
-        -- 设置目标TimeScale
-        targetTimeScale = 0.05
+        -- 立即暂停时间
+        game.SetTimeScale(0.01)
 
         -- 通知客户端播放音效和开启黑白
         net.Start("OFPhonk_KillEvent")
         net.Send(attacker)
 
-        -- 计时后，恢复速度
-        timer.Simple(freezeDuration, function()
-            targetTimeScale = 1
-            print("[OFPhonk] 恢复速度中")
-        end)
-
-        -- 计时后，强制完全恢复（应答客户端实际只负责关黑白）
-        timer.Simple(freezeDuration + recoveryDuration, function()
-            currentTimeScale = 1
-            targetTimeScale = 1
-            game.SetTimeScale(1)
-            print("[OFPhonk] 强制完全恢复")
+        -- 在真实时间（不受 game.SetTimeScale 影响）后恢复速度
+        local realRecoveryTime = SysTime() + freezeDuration + recoveryDuration
+        timer.Create("OFPhonk_RecoveryTimer", 0.01, 0, function() -- 使用一个非常小的间隔来检查
+            if SysTime() >= realRecoveryTime then
+                game.SetTimeScale(1)
+                print("[OFPhonk] 强制完全恢复")
+                timer.Remove("OFPhonk_RecoveryTimer")
+            end
         end)
     end
 
@@ -68,21 +61,6 @@ if SERVER then
         if victim ~= attacker then
             HandlePhonkKillEvent(attacker)
         end
-    end)
-
-    -- 服务器平滑推动timescale
-    hook.Add("Think", "OFPhonk_TimeScaleUpdater", function()
-        local FT = FrameTime()
-        currentTimeScale = Lerp(FT * 5, currentTimeScale, targetTimeScale)
-        -- 只有在当前TimeScale与目标TimeScale有显著差异，
-        -- 并且当前游戏TimeScale不是由其他插件设置的低速状态时才进行设置
-        -- 这里的检查是一个简单的尝试，可能无法完全避免所有冲突
-        if math.abs(game.GetTimeScale() - currentTimeScale) > 0.01 and game.GetTimeScale() >= 0.1 then
-            game.SetTimeScale(currentTimeScale)
-        elseif game.GetTimeScale() == 1 and targetTimeScale < 1 then
-            game.SetTimeScale(currentTimeScale)
-        end
-        print("[OFPhonk] 时间：", currentTimeScale)
     end)
 
 elseif CLIENT then
